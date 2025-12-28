@@ -1,0 +1,179 @@
+' ================================
+' スネークゲーム (SNAKE)
+' プチコン4用サンプルプログラム
+' ================================
+' 操作方法:
+'   十字キー: 方向転換
+'   Aボタン: リスタート
+' ================================
+
+OPTION STRICT
+ACLS
+
+' 定数定義
+CONST GW = 20   ' グリッド幅
+CONST GH = 15   ' グリッド高さ
+CONST CS = 16   ' セルサイズ
+
+' 変数宣言
+DIM SNAKE_X[300], SNAKE_Y[300]
+DIM SNAKE_LEN, DIR_X, DIR_Y
+DIM FOOD_X, FOOD_Y
+DIM SCORE, SPEED
+DIM GAME_OVER, MOVE_TIME
+
+' 初期化
+GOSUB @GAME_INIT
+
+' メインループ
+LOOP
+  VSYNC
+  IF GAME_OVER THEN
+    GOSUB @DRAW_GAMEOVER
+    IF BUTTON(2) AND 16 THEN GOSUB @GAME_INIT
+  ELSE
+    GOSUB @INPUT
+    GOSUB @UPDATE
+    GOSUB @DRAW
+  ENDIF
+ENDLOOP
+
+' ===== ゲーム初期化 =====
+@GAME_INIT
+ACLS
+SCORE = 0
+SPEED = 8
+MOVE_TIME = 0
+GAME_OVER = FALSE
+
+' スネーク初期化
+SNAKE_LEN = 3
+DIR_X = 1
+DIR_Y = 0
+FOR I = 0 TO SNAKE_LEN - 1
+  SNAKE_X[I] = GW / 2 - I
+  SNAKE_Y[I] = GH / 2
+NEXT
+
+' 食べ物配置
+GOSUB @SPAWN_FOOD
+RETURN
+
+' ===== 食べ物生成 =====
+@SPAWN_FOOD
+VAR VALID = FALSE
+WHILE NOT VALID
+  FOOD_X = RND(GW)
+  FOOD_Y = RND(GH)
+  VALID = TRUE
+  ' スネークと重なっていないかチェック
+  FOR I = 0 TO SNAKE_LEN - 1
+    IF SNAKE_X[I] == FOOD_X AND SNAKE_Y[I] == FOOD_Y THEN
+      VALID = FALSE
+      BREAK
+    ENDIF
+  NEXT
+WEND
+RETURN
+
+' ===== 入力処理 =====
+@INPUT
+VAR B = BUTTON(2)
+
+' 方向転換（逆方向は禁止）
+IF B AND 1 THEN
+  IF DIR_Y != 1 THEN DIR_X = 0 : DIR_Y = -1
+ENDIF
+IF B AND 2 THEN
+  IF DIR_Y != -1 THEN DIR_X = 0 : DIR_Y = 1
+ENDIF
+IF B AND 4 THEN
+  IF DIR_X != 1 THEN DIR_X = -1 : DIR_Y = 0
+ENDIF
+IF B AND 8 THEN
+  IF DIR_X != -1 THEN DIR_X = 1 : DIR_Y = 0
+ENDIF
+RETURN
+
+' ===== 更新処理 =====
+@UPDATE
+INC MOVE_TIME
+IF MOVE_TIME < SPEED THEN RETURN
+MOVE_TIME = 0
+
+' 新しい頭の位置
+VAR NEW_X = SNAKE_X[0] + DIR_X
+VAR NEW_Y = SNAKE_Y[0] + DIR_Y
+
+' 壁衝突判定
+IF NEW_X < 0 OR NEW_X >= GW OR NEW_Y < 0 OR NEW_Y >= GH THEN
+  GAME_OVER = TRUE
+  RETURN
+ENDIF
+
+' 自分自身との衝突判定
+FOR I = 0 TO SNAKE_LEN - 1
+  IF SNAKE_X[I] == NEW_X AND SNAKE_Y[I] == NEW_Y THEN
+    GAME_OVER = TRUE
+    RETURN
+  ENDIF
+NEXT
+
+' 食べ物を食べた
+VAR ATE = FALSE
+IF NEW_X == FOOD_X AND NEW_Y == FOOD_Y THEN
+  ATE = TRUE
+  SCORE = SCORE + 10
+  INC SNAKE_LEN
+  ' スピードアップ
+  IF SPEED > 2 AND SCORE MOD 50 == 0 THEN
+    DEC SPEED
+  ENDIF
+  BEEP 0
+  GOSUB @SPAWN_FOOD
+ENDIF
+
+' 体を移動
+FOR I = SNAKE_LEN - 1 TO 1 STEP -1
+  SNAKE_X[I] = SNAKE_X[I - 1]
+  SNAKE_Y[I] = SNAKE_Y[I - 1]
+NEXT
+SNAKE_X[0] = NEW_X
+SNAKE_Y[0] = NEW_Y
+RETURN
+
+' ===== 描画 =====
+@DRAW
+' 背景クリア
+GFILL 0, 0, 319, 239, #001100
+
+' グリッド線（薄く）
+FOR X = 0 TO GW
+  GLINE X * CS, 0, X * CS, GH * CS, #002200
+NEXT
+FOR Y = 0 TO GH
+  GLINE 0, Y * CS, GW * CS, Y * CS, #002200
+NEXT
+
+' 食べ物描画
+GFILL FOOD_X * CS + 2, FOOD_Y * CS + 2, FOOD_X * CS + CS - 3, FOOD_Y * CS + CS - 3, #FF0000
+
+' スネーク描画
+FOR I = 0 TO SNAKE_LEN - 1
+  VAR C = #00FF00
+  IF I == 0 THEN C = #88FF88  ' 頭は明るく
+  GFILL SNAKE_X[I] * CS + 1, SNAKE_Y[I] * CS + 1, SNAKE_X[I] * CS + CS - 2, SNAKE_Y[I] * CS + CS - 2, C
+NEXT
+
+' 情報表示
+LOCATE 0, 15 : PRINT "SCORE: "; SCORE; "  LENGTH: "; SNAKE_LEN
+RETURN
+
+' ===== ゲームオーバー描画 =====
+@DRAW_GAMEOVER
+GFILL 80, 90, 240, 150, #000000
+GBOX 80, 90, 240, 150, #00FF00
+LOCATE 13, 11 : PRINT "GAME OVER"
+LOCATE 11, 13 : PRINT "SCORE: "; SCORE
+LOCATE 9, 15 : PRINT "PRESS A TO RETRY"
+RETURN

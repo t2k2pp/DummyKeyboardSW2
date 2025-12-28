@@ -1,0 +1,262 @@
+' ================================
+' 電卓アプリ (CALCULATOR)
+' プチコン4用サンプルプログラム
+' ================================
+' 操作方法:
+'   十字キー: カーソル移動
+'   Aボタン: ボタン押下
+'   Bボタン: クリア
+' ================================
+
+OPTION STRICT
+ACLS
+
+' 変数宣言
+DIM DISPLAY$, MEMORY!, OPERATOR$
+DIM FIRST_NUM!, SECOND_NUM!
+DIM NEW_INPUT, HAS_OPERATOR
+DIM CURSOR_X, CURSOR_Y
+
+' ボタン配置
+DIM BUTTONS$[4, 5]
+DATA "7", "8", "9", "/", "C"
+DATA "4", "5", "6", "*", "CE"
+DATA "1", "2", "3", "-", "M+"
+DATA "0", ".", "=", "+", "MR"
+
+' 初期化
+GOSUB @INIT
+
+' メインループ
+LOOP
+  VSYNC
+  GOSUB @INPUT
+  GOSUB @DRAW
+ENDLOOP
+
+' ===== 初期化 =====
+@INIT
+ACLS
+DISPLAY$ = "0"
+MEMORY! = 0
+OPERATOR$ = ""
+FIRST_NUM! = 0
+SECOND_NUM! = 0
+NEW_INPUT = TRUE
+HAS_OPERATOR = FALSE
+CURSOR_X = 0
+CURSOR_Y = 0
+
+' ボタンデータ読み込み
+RESTORE
+FOR Y = 0 TO 3
+  FOR X = 0 TO 4
+    READ BUTTONS$[X, Y]
+  NEXT
+NEXT
+RETURN
+
+' ===== 入力処理 =====
+@INPUT
+VAR B = BUTTON(2)
+
+' カーソル移動
+IF B AND 1 THEN CURSOR_Y = CURSOR_Y - 1
+IF B AND 2 THEN CURSOR_Y = CURSOR_Y + 1
+IF B AND 4 THEN CURSOR_X = CURSOR_X - 1
+IF B AND 8 THEN CURSOR_X = CURSOR_X + 1
+
+' 範囲制限
+IF CURSOR_X < 0 THEN CURSOR_X = 4
+IF CURSOR_X > 4 THEN CURSOR_X = 0
+IF CURSOR_Y < 0 THEN CURSOR_Y = 3
+IF CURSOR_Y > 3 THEN CURSOR_Y = 0
+
+' 決定
+IF B AND 16 THEN
+  VAR BTN$ = BUTTONS$[CURSOR_X, CURSOR_Y]
+  GOSUB @PROCESS_BUTTON
+  BEEP 0
+ENDIF
+
+' クリア（Bボタン）
+IF B AND 32 THEN
+  DISPLAY$ = "0"
+  NEW_INPUT = TRUE
+  BEEP 1
+ENDIF
+RETURN
+
+' ===== ボタン処理 =====
+@PROCESS_BUTTON
+VAR BTN$ = BUTTONS$[CURSOR_X, CURSOR_Y]
+
+' 数字または小数点
+IF BTN$ >= "0" AND BTN$ <= "9" THEN
+  IF NEW_INPUT THEN
+    DISPLAY$ = BTN$
+    NEW_INPUT = FALSE
+  ELSE
+    IF DISPLAY$ == "0" THEN
+      DISPLAY$ = BTN$
+    ELSE
+      DISPLAY$ = DISPLAY$ + BTN$
+    ENDIF
+  ENDIF
+  RETURN
+ENDIF
+
+IF BTN$ == "." THEN
+  IF INSTR(DISPLAY$, ".") == -1 THEN
+    DISPLAY$ = DISPLAY$ + "."
+    NEW_INPUT = FALSE
+  ENDIF
+  RETURN
+ENDIF
+
+' 演算子
+IF BTN$ == "+" OR BTN$ == "-" OR BTN$ == "*" OR BTN$ == "/" THEN
+  IF HAS_OPERATOR THEN
+    GOSUB @CALCULATE
+  ENDIF
+  FIRST_NUM! = VAL(DISPLAY$)
+  OPERATOR$ = BTN$
+  NEW_INPUT = TRUE
+  HAS_OPERATOR = TRUE
+  RETURN
+ENDIF
+
+' イコール
+IF BTN$ == "=" THEN
+  IF HAS_OPERATOR THEN
+    GOSUB @CALCULATE
+    OPERATOR$ = ""
+    HAS_OPERATOR = FALSE
+  ENDIF
+  RETURN
+ENDIF
+
+' クリア
+IF BTN$ == "C" THEN
+  DISPLAY$ = "0"
+  FIRST_NUM! = 0
+  SECOND_NUM! = 0
+  OPERATOR$ = ""
+  NEW_INPUT = TRUE
+  HAS_OPERATOR = FALSE
+  RETURN
+ENDIF
+
+' クリアエントリー
+IF BTN$ == "CE" THEN
+  DISPLAY$ = "0"
+  NEW_INPUT = TRUE
+  RETURN
+ENDIF
+
+' メモリー追加
+IF BTN$ == "M+" THEN
+  MEMORY! = MEMORY! + VAL(DISPLAY$)
+  NEW_INPUT = TRUE
+  RETURN
+ENDIF
+
+' メモリー呼び出し
+IF BTN$ == "MR" THEN
+  DISPLAY$ = STR$(MEMORY!)
+  NEW_INPUT = TRUE
+  RETURN
+ENDIF
+RETURN
+
+' ===== 計算実行 =====
+@CALCULATE
+SECOND_NUM! = VAL(DISPLAY$)
+VAR RESULT! = 0
+
+IF OPERATOR$ == "+" THEN RESULT! = FIRST_NUM! + SECOND_NUM!
+IF OPERATOR$ == "-" THEN RESULT! = FIRST_NUM! - SECOND_NUM!
+IF OPERATOR$ == "*" THEN RESULT! = FIRST_NUM! * SECOND_NUM!
+IF OPERATOR$ == "/" THEN
+  IF SECOND_NUM! != 0 THEN
+    RESULT! = FIRST_NUM! / SECOND_NUM!
+  ELSE
+    DISPLAY$ = "ERROR"
+    NEW_INPUT = TRUE
+    RETURN
+  ENDIF
+ENDIF
+
+' 結果を表示用に整形
+IF RESULT! == INT(RESULT!) THEN
+  DISPLAY$ = STR$(INT(RESULT!))
+ELSE
+  DISPLAY$ = FORMAT$("%.6f", RESULT!)
+  ' 末尾の0を削除
+  WHILE RIGHT$(DISPLAY$, 1) == "0"
+    DISPLAY$ = LEFT$(DISPLAY$, LEN(DISPLAY$) - 1)
+  WEND
+ENDIF
+
+FIRST_NUM! = RESULT!
+NEW_INPUT = TRUE
+RETURN
+
+' ===== 描画 =====
+@DRAW
+GFILL 0, 0, 319, 239, #222222
+
+' タイトル
+LOCATE 14, 0 : COLOR #888888 : PRINT "電 卓"
+COLOR #FFFFFF
+
+' ディスプレイ
+GFILL 40, 20, 280, 60, #000000
+GBOX 40, 20, 280, 60, #00FFFF
+
+' 表示（右寄せ）
+VAR DISP_X = 34 - LEN(DISPLAY$)
+IF DISP_X < 6 THEN DISP_X = 6
+LOCATE DISP_X, 4 : COLOR #00FF00 : PRINT DISPLAY$
+
+' 演算子表示
+IF OPERATOR$ != "" THEN
+  LOCATE 6, 4 : COLOR #FFFF00 : PRINT OPERATOR$
+ENDIF
+
+' メモリー表示
+IF MEMORY! != 0 THEN
+  LOCATE 6, 2 : COLOR #888888 : PRINT "M"
+ENDIF
+COLOR #FFFFFF
+
+' ボタン描画
+FOR Y = 0 TO 3
+  FOR X = 0 TO 4
+    VAR BX = 40 + X * 50
+    VAR BY = 80 + Y * 38
+    VAR BTN$ = BUTTONS$[X, Y]
+    
+    ' ボタン色
+    VAR COL = #444444
+    IF BTN$ >= "0" AND BTN$ <= "9" THEN COL = #555555
+    IF BTN$ == "+" OR BTN$ == "-" OR BTN$ == "*" OR BTN$ == "/" THEN COL = #FF8800
+    IF BTN$ == "=" THEN COL = #00AA00
+    IF BTN$ == "C" OR BTN$ == "CE" THEN COL = #AA0000
+    IF BTN$ == "M+" OR BTN$ == "MR" THEN COL = #0088AA
+    
+    ' 選択中は明るく
+    IF X == CURSOR_X AND Y == CURSOR_Y THEN
+      COL = COL + #333333
+      GBOX BX - 2, BY - 2, BX + 46, BY + 34, #FFFF00
+    ENDIF
+    
+    GFILL BX, BY, BX + 44, BY + 32, COL
+    GBOX BX, BY, BX + 44, BY + 32, #888888
+    
+    ' ボタンラベル
+    LOCATE (BX + 22) / 8 - LEN(BTN$) / 2, (BY + 16) / 8
+    PRINT BTN$
+  NEXT
+NEXT
+RETURN

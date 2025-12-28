@@ -1,0 +1,187 @@
+' ================================
+' ピンポンゲーム (PONG)
+' プチコン4用サンプルプログラム
+' ================================
+' 操作方法:
+'   上下キー: 左パドル移動
+'   Aボタン: ゲーム開始/リスタート
+' CPUが右パドルを操作
+' ================================
+
+OPTION STRICT
+ACLS
+
+' 定数定義
+CONST SW = 320
+CONST SH = 240
+CONST PW = 8    ' パドル幅
+CONST PH = 40   ' パドル高さ
+CONST BR = 6    ' ボール半径
+
+' 変数宣言
+DIM P1_Y, P2_Y  ' パドルY座標
+DIM BALL_X!, BALL_Y!, BALL_VX!, BALL_VY!
+DIM P1_SCORE, P2_SCORE
+DIM BALL_ACTIVE, GAME_OVER
+
+' 初期化
+GOSUB @GAME_INIT
+
+' メインループ
+LOOP
+  VSYNC
+  IF GAME_OVER THEN
+    GOSUB @DRAW_GAMEOVER
+    IF BUTTON(2) AND 16 THEN GOSUB @GAME_INIT
+  ELSE
+    GOSUB @INPUT
+    GOSUB @UPDATE
+    GOSUB @DRAW
+  ENDIF
+ENDLOOP
+
+' ===== ゲーム初期化 =====
+@GAME_INIT
+ACLS
+P1_SCORE = 0
+P2_SCORE = 0
+GAME_OVER = FALSE
+GOSUB @RESET_BALL
+RETURN
+
+' ===== ボールリセット =====
+@RESET_BALL
+P1_Y = SH / 2 - PH / 2
+P2_Y = SH / 2 - PH / 2
+BALL_X! = SW / 2
+BALL_Y! = SH / 2
+BALL_VX! = 0
+BALL_VY! = 0
+BALL_ACTIVE = FALSE
+RETURN
+
+' ===== 入力処理 =====
+@INPUT
+VAR B = BUTTON(0)
+
+' 左パドル（プレイヤー）
+IF B AND 1 THEN P1_Y = P1_Y - 5
+IF B AND 2 THEN P1_Y = P1_Y + 5
+IF P1_Y < 0 THEN P1_Y = 0
+IF P1_Y > SH - PH THEN P1_Y = SH - PH
+
+' ボール発射
+IF NOT BALL_ACTIVE AND (BUTTON(2) AND 16) THEN
+  BALL_ACTIVE = TRUE
+  BALL_VX! = 4.0
+  BALL_VY! = (RND(100) - 50) / 25.0
+  BEEP 1
+ENDIF
+RETURN
+
+' ===== 更新処理 =====
+@UPDATE
+IF NOT BALL_ACTIVE THEN RETURN
+
+' CPU（右パドル）の動き
+VAR CPU_TARGET = BALL_Y! - PH / 2
+IF P2_Y < CPU_TARGET - 3 THEN P2_Y = P2_Y + 4
+IF P2_Y > CPU_TARGET + 3 THEN P2_Y = P2_Y - 4
+IF P2_Y < 0 THEN P2_Y = 0
+IF P2_Y > SH - PH THEN P2_Y = SH - PH
+
+' ボール移動
+BALL_X! = BALL_X! + BALL_VX!
+BALL_Y! = BALL_Y! + BALL_VY!
+
+' 上下壁反射
+IF BALL_Y! <= BR THEN
+  BALL_Y! = BR
+  BALL_VY! = -BALL_VY!
+  BEEP 0
+ENDIF
+IF BALL_Y! >= SH - BR THEN
+  BALL_Y! = SH - BR
+  BALL_VY! = -BALL_VY!
+  BEEP 0
+ENDIF
+
+' 左パドル反射
+IF BALL_X! - BR <= 20 + PW THEN
+  IF BALL_Y! >= P1_Y AND BALL_Y! <= P1_Y + PH THEN
+    BALL_X! = 20 + PW + BR
+    BALL_VX! = ABS(BALL_VX!) * 1.05
+    IF BALL_VX! > 8 THEN BALL_VX! = 8
+    VAR HIT = (BALL_Y! - P1_Y) / PH - 0.5
+    BALL_VY! = HIT * 6.0
+    BEEP 1
+  ENDIF
+ENDIF
+
+' 右パドル反射
+IF BALL_X! + BR >= SW - 20 - PW THEN
+  IF BALL_Y! >= P2_Y AND BALL_Y! <= P2_Y + PH THEN
+    BALL_X! = SW - 20 - PW - BR
+    BALL_VX! = -ABS(BALL_VX!) * 1.05
+    IF BALL_VX! < -8 THEN BALL_VX! = -8
+    VAR HIT = (BALL_Y! - P2_Y) / PH - 0.5
+    BALL_VY! = HIT * 6.0
+    BEEP 1
+  ENDIF
+ENDIF
+
+' 得点判定
+IF BALL_X! < 0 THEN
+  P2_SCORE = P2_SCORE + 1
+  BEEP 3
+  IF P2_SCORE >= 11 THEN GAME_OVER = TRUE ELSE GOSUB @RESET_BALL
+ENDIF
+IF BALL_X! > SW THEN
+  P1_SCORE = P1_SCORE + 1
+  BEEP 2
+  IF P1_SCORE >= 11 THEN GAME_OVER = TRUE ELSE GOSUB @RESET_BALL
+ENDIF
+RETURN
+
+' ===== 描画 =====
+@DRAW
+' 背景クリア
+GFILL 0, 0, SW - 1, SH - 1, #000000
+
+' 中央線
+FOR Y = 0 TO SH STEP 16
+  GFILL SW / 2 - 2, Y, SW / 2 + 2, Y + 8, #333333
+NEXT
+
+' パドル描画
+GFILL 20, P1_Y, 20 + PW, P1_Y + PH, #00FF00
+GFILL SW - 20 - PW, P2_Y, SW - 20, P2_Y + PH, #FF0000
+
+' ボール描画
+GCIRCLE BALL_X!, BALL_Y!, BR, #FFFFFF, TRUE
+
+' スコア表示
+LOCATE 8, 1 : PRINT P1_SCORE
+LOCATE 30, 1 : PRINT P2_SCORE
+
+LOCATE 3, 1 : PRINT "YOU"
+LOCATE 27, 1 : PRINT "CPU"
+
+' 開始ガイド
+IF NOT BALL_ACTIVE THEN
+  LOCATE 10, 14 : PRINT "PRESS A TO START"
+ENDIF
+RETURN
+
+' ===== ゲームオーバー描画 =====
+@DRAW_GAMEOVER
+GFILL 80, 80, 240, 160, #000000
+GBOX 80, 80, 240, 160, #FFFF00
+IF P1_SCORE >= 11 THEN
+  LOCATE 13, 10 : PRINT "YOU WIN!"
+ELSE
+  LOCATE 12, 10 : PRINT "YOU LOSE..."
+ENDIF
+LOCATE 10, 12 : PRINT "SCORE: "; P1_SCORE; " - "; P2_SCORE
+LOCATE 9, 14 : PRINT "PRESS A TO RETRY"
+RETURN

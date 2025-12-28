@@ -1,0 +1,175 @@
+' ================================
+' 数当てゲーム (NUMBER GUESS)
+' プチコン4用サンプルプログラム
+' ================================
+' 操作方法:
+'   数字キー: 数字入力
+'   Aボタン: 決定
+'   Bボタン: バックスペース
+' ================================
+
+OPTION STRICT
+ACLS
+
+' 変数宣言
+DIM ANSWER, GUESS, TRIES
+DIM INPUT_STR$, MESSAGE$
+DIM GAME_OVER, WON
+DIM HISTORY$[20], HIST_COUNT
+DIM MIN_VAL, MAX_VAL
+
+' 初期化
+GOSUB @GAME_INIT
+
+' メインループ
+LOOP
+  VSYNC
+  GOSUB @INPUT
+  GOSUB @DRAW
+  IF GAME_OVER AND (BUTTON(2) AND 16) THEN
+    GOSUB @GAME_INIT
+  ENDIF
+ENDLOOP
+
+' ===== ゲーム初期化 =====
+@GAME_INIT
+ACLS
+MIN_VAL = 1
+MAX_VAL = 100
+ANSWER = RND(MAX_VAL - MIN_VAL + 1) + MIN_VAL
+GUESS = 0
+TRIES = 0
+INPUT_STR$ = ""
+MESSAGE$ = ""
+GAME_OVER = FALSE
+WON = FALSE
+HIST_COUNT = 0
+RETURN
+
+' ===== 入力処理 =====
+@INPUT
+IF GAME_OVER THEN RETURN
+
+VAR B = BUTTON(2)
+
+' 数字入力（0-9）
+FOR I = 0 TO 9
+  IF INKEY$() == STR$(I) AND LEN(INPUT_STR$) < 3 THEN
+    INPUT_STR$ = INPUT_STR$ + STR$(I)
+  ENDIF
+NEXT
+
+' 方向キーでの数字入力
+IF B AND 1 THEN
+  VAR N = VAL(INPUT_STR$)
+  N = N + 1
+  IF N > MAX_VAL THEN N = MAX_VAL
+  INPUT_STR$ = STR$(N)
+ENDIF
+IF B AND 2 THEN
+  VAR N = VAL(INPUT_STR$)
+  N = N - 1
+  IF N < MIN_VAL THEN N = MIN_VAL
+  INPUT_STR$ = STR$(N)
+ENDIF
+
+' バックスペース
+IF B AND 32 THEN
+  IF LEN(INPUT_STR$) > 0 THEN
+    INPUT_STR$ = LEFT$(INPUT_STR$, LEN(INPUT_STR$) - 1)
+  ENDIF
+ENDIF
+
+' 決定
+IF B AND 16 THEN
+  IF LEN(INPUT_STR$) > 0 THEN
+    GUESS = VAL(INPUT_STR$)
+    TRIES = TRIES + 1
+    
+    IF GUESS == ANSWER THEN
+      MESSAGE$ = "正解！" + STR$(TRIES) + "回で当てました！"
+      GAME_OVER = TRUE
+      WON = TRUE
+      BEEP 2
+    ELSEIF GUESS < ANSWER THEN
+      MESSAGE$ = STR$(GUESS) + " より大きいです"
+      MIN_VAL = MAX(MIN_VAL, GUESS + 1)
+      BEEP 0
+    ELSE
+      MESSAGE$ = STR$(GUESS) + " より小さいです"
+      MAX_VAL = MIN(MAX_VAL, GUESS - 1)
+      BEEP 0
+    ENDIF
+    
+    ' 履歴に追加
+    IF HIST_COUNT < 20 THEN
+      VAR HINT$ = ""
+      IF GUESS < ANSWER THEN HINT$ = " ↑"
+      IF GUESS > ANSWER THEN HINT$ = " ↓"
+      HISTORY$[HIST_COUNT] = STR$(TRIES) + ": " + STR$(GUESS) + HINT$
+      HIST_COUNT = HIST_COUNT + 1
+    ENDIF
+    
+    INPUT_STR$ = ""
+  ENDIF
+ENDIF
+RETURN
+
+' ===== 描画 =====
+@DRAW
+' 背景クリア
+GFILL 0, 0, 319, 239, #112233
+
+' タイトル
+GFILL 60, 10, 260, 50, #223344
+GBOX 60, 10, 260, 50, #88CCFF
+LOCATE 11, 2 : COLOR #88CCFF : PRINT "数 当 て ゲ ー ム"
+COLOR #FFFFFF
+
+' ルール
+LOCATE 6, 5 : PRINT "1〜100の数字を当ててください"
+
+' 範囲ヒント
+LOCATE 10, 7 : PRINT "範囲: "; MIN_VAL; " 〜 "; MAX_VAL
+
+' 入力エリア
+GFILL 100, 80, 220, 110, #000000
+GBOX 100, 80, 220, 110, #FFFF00
+LOCATE 14, 10 : PRINT "> "; INPUT_STR$; "_"
+
+' メッセージ
+IF MESSAGE$ != "" THEN
+  IF WON THEN
+    GFILL 40, 120, 280, 150, #00AA00
+  ELSE
+    GFILL 40, 120, 280, 150, #334455
+  ENDIF
+  GBOX 40, 120, 280, 150, #FFFFFF
+  LOCATE 20 - LEN(MESSAGE$) / 2, 15 : PRINT MESSAGE$
+ENDIF
+
+' 履歴
+GFILL 220, 160, 310, 235, #223344
+GBOX 220, 160, 310, 235, #666666
+LOCATE 28, 19 : PRINT "履歴"
+FOR I = 0 TO MIN(HIST_COUNT - 1, 4)
+  VAR IDX = HIST_COUNT - 1 - I
+  LOCATE 28, 20 + I : PRINT HISTORY$[IDX]
+NEXT
+
+' 操作ガイド
+LOCATE 1, 19 : PRINT "操作:"
+LOCATE 1, 20 : PRINT "↑↓: 数字変更"
+LOCATE 1, 21 : PRINT "A: 決定"
+LOCATE 1, 22 : PRINT "B: 削除"
+
+' 挑戦回数
+LOCATE 1, 24 : PRINT "挑戦: "; TRIES; "回"
+
+' ゲームオーバー時
+IF GAME_OVER THEN
+  GFILL 60, 180, 200, 210, #FFFF00
+  LOCATE 9, 23 : COLOR #000000 : PRINT "A: もう一度プレイ"
+  COLOR #FFFFFF
+ENDIF
+RETURN

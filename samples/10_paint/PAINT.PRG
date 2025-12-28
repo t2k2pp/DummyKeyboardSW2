@@ -1,0 +1,203 @@
+' ================================
+' お絵かきアプリ (PAINT)
+' プチコン4用サンプルプログラム
+' ================================
+' 操作方法:
+'   十字キー: カーソル移動
+'   Aボタン: 描画
+'   Bボタン: 消しゴム
+'   Xボタン: 色選択
+'   Yボタン: ブラシサイズ変更
+'   L/R: 全消去
+' ================================
+
+OPTION STRICT
+ACLS
+
+' 定数
+CONST SW = 320
+CONST SH = 200
+
+' 変数宣言
+DIM CUR_X, CUR_Y
+DIM CUR_COLOR, CUR_SIZE
+DIM PALETTE[16]
+DIM COLOR_MENU, SIZE_MENU
+
+' パレット定義
+PALETTE[0] = #000000   ' 黒
+PALETTE[1] = #FFFFFF   ' 白
+PALETTE[2] = #FF0000   ' 赤
+PALETTE[3] = #00FF00   ' 緑
+PALETTE[4] = #0000FF   ' 青
+PALETTE[5] = #FFFF00   ' 黄
+PALETTE[6] = #FF00FF   ' マゼンタ
+PALETTE[7] = #00FFFF   ' シアン
+PALETTE[8] = #FF8800   ' オレンジ
+PALETTE[9] = #8800FF   ' 紫
+PALETTE[10] = #88FF00  ' ライム
+PALETTE[11] = #0088FF  ' スカイブルー
+PALETTE[12] = #FF0088  ' ピンク
+PALETTE[13] = #888888  ' グレー
+PALETTE[14] = #444444  ' ダークグレー
+PALETTE[15] = #FFCCAA  ' 肌色
+
+' 初期化
+GOSUB @INIT
+
+' メインループ
+LOOP
+  VSYNC
+  GOSUB @INPUT
+  GOSUB @DRAW_UI
+ENDLOOP
+
+' ===== 初期化 =====
+@INIT
+ACLS
+CUR_X = SW / 2
+CUR_Y = SH / 2
+CUR_COLOR = 1  ' 白
+CUR_SIZE = 2
+COLOR_MENU = FALSE
+SIZE_MENU = FALSE
+
+' キャンバスを黒で塗りつぶし
+GFILL 0, 0, SW - 1, SH - 1, #000000
+RETURN
+
+' ===== 入力処理 =====
+@INPUT
+VAR B = BUTTON(0)  ' 継続入力
+VAR R = BUTTON(2)  ' 単発入力
+
+' メニュー表示中
+IF COLOR_MENU THEN
+  GOSUB @COLOR_MENU_INPUT
+  RETURN
+ENDIF
+IF SIZE_MENU THEN
+  GOSUB @SIZE_MENU_INPUT
+  RETURN
+ENDIF
+
+' カーソル移動
+VAR SPEED = 2
+IF B AND 1 THEN CUR_Y = CUR_Y - SPEED
+IF B AND 2 THEN CUR_Y = CUR_Y + SPEED
+IF B AND 4 THEN CUR_X = CUR_X - SPEED
+IF B AND 8 THEN CUR_X = CUR_X + SPEED
+
+' 範囲制限
+IF CUR_X < 0 THEN CUR_X = 0
+IF CUR_X >= SW THEN CUR_X = SW - 1
+IF CUR_Y < 0 THEN CUR_Y = 0
+IF CUR_Y >= SH THEN CUR_Y = SH - 1
+
+' 描画（Aボタン）
+IF B AND 16 THEN
+  GCIRCLE CUR_X, CUR_Y, CUR_SIZE, PALETTE[CUR_COLOR], TRUE
+ENDIF
+
+' 消しゴム（Bボタン）
+IF B AND 32 THEN
+  GCIRCLE CUR_X, CUR_Y, CUR_SIZE + 2, PALETTE[0], TRUE
+ENDIF
+
+' 色選択メニュー（Xボタン）
+IF R AND 64 THEN
+  COLOR_MENU = TRUE
+ENDIF
+
+' サイズメニュー（Yボタン）
+IF R AND 128 THEN
+  SIZE_MENU = TRUE
+ENDIF
+
+' 全消去（L+R）
+IF (B AND 256) AND (B AND 512) THEN
+  GFILL 0, 0, SW - 1, SH - 1, #000000
+  BEEP 2
+ENDIF
+RETURN
+
+' ===== カラーメニュー入力 =====
+@COLOR_MENU_INPUT
+VAR B = BUTTON(2)
+
+IF B AND 4 THEN CUR_COLOR = (CUR_COLOR - 1 + 16) MOD 16
+IF B AND 8 THEN CUR_COLOR = (CUR_COLOR + 1) MOD 16
+IF B AND 1 THEN CUR_COLOR = (CUR_COLOR - 4 + 16) MOD 16
+IF B AND 2 THEN CUR_COLOR = (CUR_COLOR + 4) MOD 16
+
+IF B AND 16 OR B AND 64 THEN
+  COLOR_MENU = FALSE
+  BEEP 0
+ENDIF
+RETURN
+
+' ===== サイズメニュー入力 =====
+@SIZE_MENU_INPUT
+VAR B = BUTTON(2)
+
+IF B AND 4 THEN CUR_SIZE = MAX(1, CUR_SIZE - 1)
+IF B AND 8 THEN CUR_SIZE = MIN(20, CUR_SIZE + 1)
+
+IF B AND 16 OR B AND 128 THEN
+  SIZE_MENU = FALSE
+  BEEP 0
+ENDIF
+RETURN
+
+' ===== UI描画 =====
+@DRAW_UI
+' ツールバー背景
+GFILL 0, SH, SW - 1, 239, #333333
+
+' 現在の色表示
+GFILL 5, SH + 5, 35, SH + 35, PALETTE[CUR_COLOR]
+GBOX 5, SH + 5, 35, SH + 35, #FFFFFF
+
+' ブラシサイズ表示
+GCIRCLE 60, SH + 20, CUR_SIZE, #FFFFFF, TRUE
+GBOX 40, SH + 5, 80, SH + 35, #888888
+
+' 座標表示
+LOCATE 11, 26 : COLOR #888888
+PRINT "X:"; CUR_X; " Y:"; CUR_Y; " SIZE:"; CUR_SIZE
+COLOR #FFFFFF
+
+' 操作ガイド
+LOCATE 26, 26 : COLOR #666666 : PRINT "L+R:CLR"
+COLOR #FFFFFF
+
+' カーソル描画（キャンバス上）
+IF NOT COLOR_MENU AND NOT SIZE_MENU THEN
+  GCIRCLE CUR_X, CUR_Y, CUR_SIZE + 2, #FFFFFF XOR GSPOIT(CUR_X, CUR_Y)
+ENDIF
+
+' カラーメニュー
+IF COLOR_MENU THEN
+  GFILL 80, 60, 240, 140, #222222
+  GBOX 80, 60, 240, 140, #FFFFFF
+  LOCATE 14, 8 : PRINT "色を選択"
+  
+  FOR I = 0 TO 15
+    VAR PX = 90 + (I MOD 4) * 35
+    VAR PY = 75 + (I / 4) * 15
+    GFILL PX, PY, PX + 30, PY + 12, PALETTE[I]
+    IF I == CUR_COLOR THEN
+      GBOX PX - 2, PY - 2, PX + 32, PY + 14, #FFFF00
+    ENDIF
+  NEXT
+ENDIF
+
+' サイズメニュー
+IF SIZE_MENU THEN
+  GFILL 100, 80, 220, 130, #222222
+  GBOX 100, 80, 220, 130, #FFFFFF
+  LOCATE 13, 10 : PRINT "ブラシサイズ"
+  LOCATE 15, 12 : PRINT "< "; CUR_SIZE; " >"
+  GCIRCLE 160, 110, CUR_SIZE, #FFFFFF, TRUE
+ENDIF
+RETURN
